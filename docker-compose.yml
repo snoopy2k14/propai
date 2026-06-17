@@ -1,0 +1,297 @@
+# PropAI Platform v2.0
+# Spring Boot 4.1.0 | JDK 25 | Kafka 4.x KRaft (no ZooKeeper) | MongoDB 7 | Redis 7.4
+
+x-service-defaults: &defaults
+  restart: unless-stopped
+  networks: [propai-net]
+
+x-backend-env: &backend-env
+  SPRING_PROFILES_ACTIVE: docker
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: propai_redis
+  EUREKA_URL: http://eureka-server:8761/eureka
+  JWT_SECRET: ${JWT_SECRET:-propai_jwt_secret_change_me}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  PROPAI_AI_MODEL: ${PROPAI_AI_MODEL:-claude-sonnet-4-6}
+
+services:
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  mongodb:
+    <<: *defaults
+    image: mongo:7.0
+    container_name: propai-mongodb
+    ports: ["27017:27017"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: propai
+      MONGO_INITDB_ROOT_PASSWORD: propai_secret
+    volumes: [mongodb_data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    <<: *defaults
+    image: redis:7.4-alpine
+    container_name: propai-redis
+    ports: ["6379:6379"]
+    command: redis-server --requirepass propai_redis --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "propai_redis", "ping"]
+      interval: 10s
+      retries: 5
+
+  # ── Kafka KRaft — ZooKeeper removed (apache/kafka:4.0.0 official image) ────
+
+  kafka:
+    <<: *defaults
+    image: apache/kafka:4.0.0
+    container_name: propai-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "sleep 1 && echo ok" ]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
+  kafka-ui:
+    <<: *defaults
+    image: provectuslabs/kafka-ui:latest
+    container_name: propai-kafka-ui
+    depends_on: [kafka]
+    ports: ["8090:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: propai-kraft-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+
+  elasticsearch:
+    <<: *defaults
+    image: elasticsearch:9.1.0
+    container_name: propai-elasticsearch
+    ports: ["9200:9200"]
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      xpack.security.enabled: "false"
+    volumes: [es_data:/usr/share/elasticsearch/data]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -q '\"status\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  # ── Service Registry ────────────────────────────────────────────────────────
+  eureka-server:
+    <<: *defaults
+    build:
+      context: ./backend/eureka-server
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-eureka
+    ports: ["8761:8761"]
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+
+  # ── Backend Microservices — Spring Boot 4.1.0 / JDK 25 ─────────────────────
+  api-gateway:
+    <<: *defaults
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-api-gateway
+    ports: ["8080:8080"]
+    environment:
+      <<: *backend-env
+    depends_on:
+      redis: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+
+  property-service:
+    <<: *defaults
+    build:
+      context: ./backend/property-service
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-property-service
+    ports: ["8081:8081"]
+    environment:
+      <<: *backend-env
+      MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_property_service?authSource=admin
+    depends_on:
+      mongodb: { condition: service_healthy }
+      kafka:   { condition: service_healthy }
+      redis:   { condition: service_healthy }
+
+  user-service:
+    <<: *defaults
+    build:
+      context: ./backend/user-service
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-user-service
+    ports: ["8082:8082"]
+    environment:
+      <<: *backend-env
+      MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_user_service?authSource=admin
+    depends_on:
+      mongodb: { condition: service_healthy }
+      kafka:   { condition: service_healthy }
+
+  search-service:
+    <<: *defaults
+    build:
+      context: ./backend/search-service
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-search-service
+    ports: ["8083:8083"]
+    environment:
+      <<: *backend-env
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+      kafka:         { condition: service_healthy }
+
+  enquiry-service:
+    <<: *defaults
+    build:
+      context: ./backend/enquiry-service
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-enquiry-service
+    ports: ["8084:8084"]
+    environment:
+      <<: *backend-env
+      MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_enquiry_service?authSource=admin
+    depends_on:
+      mongodb: { condition: service_healthy }
+      kafka:   { condition: service_healthy }
+
+  ai-chat-service:
+    <<: *defaults
+    build:
+      context: ./backend/ai-chat-service
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-ai-chat
+    ports: ["8085:8085"]
+    environment:
+      <<: *backend-env
+      MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_ai_chat_service?authSource=admin
+    depends_on:
+      mongodb: { condition: service_healthy }
+      kafka:   { condition: service_healthy }
+
+  analytics-service:
+    <<: *defaults
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-analytics
+    ports: ["8086:8086"]
+    environment:
+      <<: *backend-env
+      MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_analytics_service?authSource=admin
+    depends_on:
+      mongodb: { condition: service_healthy }
+      kafka:   { condition: service_healthy }
+
+  notification-service:
+    <<: *defaults
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+      args: { JAVA_VERSION: "25" }
+    container_name: propai-notifications
+    ports: ["8087:8087"]
+    environment:
+      <<: *backend-env
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend:
+    <<: *defaults
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8080
+        VITE_WS_URL: ws://localhost:8085
+    container_name: propai-frontend
+    ports: ["3000:80"]
+    depends_on: [api-gateway]
+
+  # ── Observability ─────────────────────────────────────────────────────────────
+  prometheus:
+    <<: *defaults
+    image: prom/prometheus:v2.55.0
+    container_name: propai-prometheus
+    ports: ["9090:9090"]
+    volumes:
+      - ./infrastructure/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command: ['--config.file=/etc/prometheus/prometheus.yml','--storage.tsdb.retention.time=15d']
+
+  grafana:
+    <<: *defaults
+    image: grafana/grafana:11.3.0
+    container_name: propai-grafana
+    ports: ["3001:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-propai_grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes: [grafana_data:/var/lib/grafana]
+
+  jaeger:
+    <<: *defaults
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: propai-jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
+networks:
+  propai-net:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+  kafka_data:
+  es_data:
+  prometheus_data:
+  grafana_data:

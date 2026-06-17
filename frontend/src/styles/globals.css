@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --propai-blue: #1B3B6F;
+  --propai-teal: #0EA5E9;
+  --propai-gold: #F59E0B;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', system-ui, sans-serif; color: #1a1a2e; -webkit-font-smoothing: antialiased; }
+h1,h2,h3,h4,h5,h6 { font-family: 'Poppins', system-ui, sans-serif; }
+.gradient-text { background: linear-gradient(135deg, #1B3B6F 0%, #0EA5E9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero-gradient { background: linear-gradient(135deg, #0f1f3d 0%, #1B3B6F 40%, #0EA5E9 100%); }
+.property-card { @apply bg-white rounded-2xl overflow-hidden transition-all duration-300; box-shadow: 0 2px 16px rgba(0,0,0,0.08); }
+.property-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.14); transform: translateY(-2px); }
+.glass { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); }
+.btn-primary { @apply bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200; }
+.btn-secondary { @apply bg-white hover:bg-gray-50 text-blue-800 font-semibold py-3 px-6 rounded-xl border-2 border-blue-200 transition-all duration-200; }
+@keyframes chatBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-4px)} }
+.chat-dot:nth-child(1){animation:chatBounce 1.2s infinite 0s}
+.chat-dot:nth-child(2){animation:chatBounce 1.2s infinite 0.2s}
+.chat-dot:nth-child(3){animation:chatBounce 1.2s infinite 0.4s}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#f1f1f1}
+::-webkit-scrollbar-thumb{background:#1B3B6F;border-radius:4px}

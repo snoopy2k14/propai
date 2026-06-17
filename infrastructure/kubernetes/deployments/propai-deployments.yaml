@@ -1,0 +1,166 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: propai
+  labels:
+    app.kubernetes.io/name: propai
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: propai-config
+  namespace: propai
+data:
+  kafka-bootstrap-servers: "kafka-service:9092"
+  redis-host: "redis-service"
+  redis-port: "6379"
+  eureka-url: "http://eureka-service:8761/eureka"
+  elasticsearch-url: "http://elasticsearch-service:9200"
+  ai-model: "claude-sonnet-4-6"
+
+---
+# Property Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: property-service
+  namespace: propai
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: property-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels:
+        app: property-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8081"
+    spec:
+      containers:
+        - name: property-service
+          image: propai/property-service:2.0.0
+          ports: [{ containerPort: 8081 }]
+          env:
+            - { name: SPRING_PROFILES_ACTIVE, value: kubernetes }
+            - name: MONGODB_URI
+              valueFrom: { secretKeyRef: { name: propai-secrets, key: mongodb-uri } }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka-service:9092 }
+            - { name: REDIS_HOST, value: redis-service }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: propai-secrets, key: jwt-secret } }
+            - name: ANTHROPIC_API_KEY
+              valueFrom: { secretKeyRef: { name: propai-secrets, key: anthropic-api-key } }
+            - name: JAVA_OPTS
+              value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseZGC -XX:+ZGenerational"
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { cpu: 1000m, memory: 1Gi }
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8081 }
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8081 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: property-service
+  namespace: propai
+spec:
+  selector: { app: property-service }
+  ports: [{ port: 8081, targetPort: 8081 }]
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: property-service-hpa
+  namespace: propai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: property-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+
+---
+# Kafka KRaft StatefulSet (3-node cluster, no ZooKeeper)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: propai
+spec:
+  serviceName: kafka-headless
+  replicas: 3
+  selector:
+    matchLabels: { app: kafka }
+  template:
+    metadata:
+      labels: { app: kafka }
+    spec:
+      containers:
+        - name: kafka
+          image: apache/kafka:4.0.0
+          ports:
+            - { containerPort: 9092, name: broker }
+            - { containerPort: 9093, name: controller }
+          env:
+            - { name: KAFKA_PROCESS_ROLES, value: "broker,controller" }
+            - { name: KAFKA_CONTROLLER_QUORUM_VOTERS, value: "0@kafka-0.kafka-headless:9093,1@kafka-1.kafka-headless:9093,2@kafka-2.kafka-headless:9093" }
+            - { name: KAFKA_LISTENERS, value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093" }
+            - { name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT" }
+            - { name: KAFKA_CONTROLLER_LISTENER_NAMES, value: CONTROLLER }
+            - { name: KAFKA_INTER_BROKER_LISTENER_NAME, value: PLAINTEXT }
+            - name: CLUSTER_ID
+              valueFrom: { secretKeyRef: { name: propai-secrets, key: kafka-cluster-id } }
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits:   { cpu: 2000m, memory: 4Gi }
+          volumeMounts:
+            - { name: kafka-data, mountPath: /var/lib/kafka/data }
+  volumeClaimTemplates:
+    - metadata: { name: kafka-data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 50Gi } }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: propai
+spec:
+  clusterIP: None
+  selector: { app: kafka }
+  ports:
+    - { port: 9092, name: broker }
+    - { port: 9093, name: controller }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-service
+  namespace: propai
+spec:
+  selector: { app: kafka }
+  ports: [{ port: 9092, targetPort: 9092 }]
