@@ -3,6 +3,10 @@ server:
 spring:
   application:
     name: api-gateway
+  autoconfigure:
+    exclude:
+      - org.springframework.cloud.client.discovery.simple.SimpleDiscoveryClientAutoConfiguration
+      - org.springframework.cloud.client.discovery.simple.reactive.SimpleReactiveDiscoveryClientAutoConfiguration
   threads:
     virtual:
       enabled: true
@@ -13,42 +17,44 @@ spring:
       password: ${REDIS_PASSWORD:propai_redis}
   cloud:
     gateway:
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
-      routes:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
             - id: property-service
               uri: lb://property-service
               predicates: [Path=/api/v1/properties/**]
-        - id: user-service
-          uri: lb://user-service
-          predicates: ["Path=/api/v1/users/**,/api/v1/auth/**"]
-        - id: search-service
-          uri: lb://search-service
-          predicates: [Path=/api/v1/search/**]
-        - id: enquiry-service
-          uri: lb://enquiry-service
-          predicates: [Path=/api/v1/enquiries/**]
-        - id: ai-chat-service
-          uri: lb://ai-chat-service
-          predicates: [Path=/api/v1/chat/**]
-        - id: ai-chat-ws
-          uri: lb:ws://ai-chat-service
-          predicates: [Path=/ws/**]
-        - id: analytics-service
-          uri: lb://analytics-service
-          predicates: [Path=/api/v1/analytics/**]
-        - id: notification-service
-          uri: lb://notification-service
-          predicates: [Path=/api/v1/notifications/**]
-      globalcors:
-        corsConfigurations:
-          '[/**]':
-            allowedOrigins: ["http://localhost:3000","https://propai.co.uk","https://www.propai.co.uk"]
-            allowedMethods: [GET,POST,PUT,PATCH,DELETE,OPTIONS]
-            allowedHeaders: "*"
-            allowCredentials: true
+            - id: user-service
+              uri: lb://user-service
+              predicates: ["Path=/api/v1/users/**,/api/v1/auth/**"]
+            - id: search-service
+              uri: lb://search-service
+              predicates: [Path=/api/v1/search/**]
+            - id: enquiry-service
+              uri: lb://enquiry-service
+              predicates: [Path=/api/v1/enquiries/**]
+            - id: ai-chat-service
+              uri: lb://ai-chat-service
+              predicates: [Path=/api/v1/chat/**]
+            - id: ai-chat-ws
+              uri: lb:ws://ai-chat-service
+              predicates: [Path=/ws/**]
+            - id: analytics-service
+              uri: lb://analytics-service
+              predicates: [Path=/api/v1/analytics/**]
+            - id: notification-service
+              uri: lb://notification-service
+              predicates: [Path=/api/v1/notifications/**]
+          globalcors:
+            corsConfigurations:
+              '[/**]':
+                allowedOrigins: ["http://localhost:3000","https://propai.co.uk","https://www.propai.co.uk"]
+                allowedMethods: [GET,POST,PUT,PATCH,DELETE,OPTIONS]
+                allowedHeaders: "*"
+                allowCredentials: true
 resilience4j:
   circuitbreaker:
     instances:
