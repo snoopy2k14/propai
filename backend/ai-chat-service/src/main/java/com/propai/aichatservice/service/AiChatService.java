@@ -1,5 +1,4 @@
 package com.propai.aichatservice.service;
-import com.fasterxml.jackson.databind.*;
 import com.propai.aichatservice.model.ChatSession;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +8,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
 import java.time.Instant;
 import java.util.*;
 
@@ -18,7 +20,7 @@ public class AiChatService {
     private final KafkaTemplate<String, Object> kafka;
     private final SimpMessagingTemplate ws;
     private final ChatSessionRepository repo;
-    private final ObjectMapper om;
+    private final JsonMapper om;
 
     @Value("${propai.ai.api-key:}") private String apiKey;
     @Value("${propai.ai.model:claude-sonnet-4-6}") private String model;
