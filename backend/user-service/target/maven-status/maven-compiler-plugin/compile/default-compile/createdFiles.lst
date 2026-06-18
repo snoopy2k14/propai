@@ -1,9 +1,0 @@
-com/propai/userservice/security/JwtService.class
-com/propai/userservice/config/SecurityConfig.class
-com/propai/userservice/model/User$UserRole.class
-com/propai/userservice/model/User.class
-com/propai/userservice/repository/UserRepository.class
-com/propai/userservice/controller/UserController.class
-com/propai/userservice/model/User$UserBuilder.class
-com/propai/userservice/service/UserService.class
-com/propai/userservice/UserServiceApplication.class
