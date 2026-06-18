@@ -3,10 +3,6 @@ server:
 spring:
   application:
     name: api-gateway
-  autoconfigure:
-    exclude:
-      - org.springframework.cloud.client.discovery.simple.SimpleDiscoveryClientAutoConfiguration
-      - org.springframework.cloud.client.discovery.simple.reactive.SimpleReactiveDiscoveryClientAutoConfiguration
   threads:
     virtual:
       enabled: true
