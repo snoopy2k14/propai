@@ -60,7 +60,7 @@
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-mongodb</artifactId>
         </dependency>
-        <!-- spring-cloud-starter-netflix-eureka-client removed: Boot4/SpringCloud2025 incompatibility -->
+        <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-netflix-eureka-client</artifactId></dependency>
     </dependencies>
     <build>
         <plugins>
