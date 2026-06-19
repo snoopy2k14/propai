@@ -36,6 +36,10 @@ RUN mvn package -DskipTests -B -q
 FROM eclipse-temurin:${JAVA_VERSION}-jre AS runtime
 WORKDIR /app
 
+RUN apt-get update -qq \
+ && apt-get install -y --no-install-recommends curl \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd -r propai && useradd -r -g propai -d /app propai
 COPY --from=builder --chown=propai:propai /app/target/*.jar app.jar
 USER propai
