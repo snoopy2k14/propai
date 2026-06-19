@@ -7,7 +7,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 @RestController @RequestMapping("/api/v1/chat")
-@RequiredArgsConstructor @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class ChatController {
     private final AiChatService svc;
 

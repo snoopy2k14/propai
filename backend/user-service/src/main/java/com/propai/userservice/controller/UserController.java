@@ -1,12 +1,15 @@
 package com.propai.userservice.controller;
+
 import com.propai.userservice.model.User;
 import com.propai.userservice.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.Map;
 
-@RestController @RequiredArgsConstructor @CrossOrigin(origins = "*")
+@RestController @RequiredArgsConstructor
 public class UserController {
     private final UserService svc;
 

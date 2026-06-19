@@ -1,18 +1,21 @@
 package com.propai.propertyservice.controller;
-import com.propai.propertyservice.dto.*;
+
+import com.propai.propertyservice.dto.PropertySearchRequest;
+import com.propai.propertyservice.dto.PropertyStatsDto;
 import com.propai.propertyservice.model.Property;
 import com.propai.propertyservice.service.PropertyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/properties")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class PropertyController {
     private final PropertyService svc;
 

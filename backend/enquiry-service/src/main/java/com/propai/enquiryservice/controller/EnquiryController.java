@@ -1,13 +1,15 @@
 package com.propai.enquiryservice.controller;
+
 import com.propai.enquiryservice.model.Enquiry;
 import com.propai.enquiryservice.service.EnquiryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
+import java.util.List;
+@RequiredArgsConstructor
 @RestController @RequestMapping("/api/v1/enquiries")
-@RequiredArgsConstructor @CrossOrigin(origins = "*")
 public class EnquiryController {
     private final EnquiryService svc;
 

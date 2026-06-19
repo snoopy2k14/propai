@@ -1,11 +1,12 @@
 package com.propai.searchservice.controller;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.*;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController @RequestMapping("/api/v1/search")
-@RequiredArgsConstructor @CrossOrigin(origins = "*")
 public class SearchController {
 
     @GetMapping
