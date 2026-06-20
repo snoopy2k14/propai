@@ -1,7 +1,0 @@
-/Users/narasimhakotnala/Downloads/propai-final/backend/user-service/src/main/java/com/propai/userservice/UserServiceApplication.java
-/Users/narasimhakotnala/Downloads/propai-final/backend/user-service/src/main/java/com/propai/userservice/config/SecurityConfig.java
-/Users/narasimhakotnala/Downloads/propai-final/backend/user-service/src/main/java/com/propai/userservice/controller/UserController.java
-/Users/narasimhakotnala/Downloads/propai-final/backend/user-service/src/main/java/com/propai/userservice/model/User.java
-/Users/narasimhakotnala/Downloads/propai-final/backend/user-service/src/main/java/com/propai/userservice/repository/UserRepository.java
-/Users/narasimhakotnala/Downloads/propai-final/backend/user-service/src/main/java/com/propai/userservice/security/JwtService.java
-/Users/narasimhakotnala/Downloads/propai-final/backend/user-service/src/main/java/com/propai/userservice/service/UserService.java
