@@ -44,13 +44,6 @@ spring:
             - id: notification-service
               uri: lb://notification-service
               predicates: [Path=/api/v1/notifications/**]
-          globalcors:
-            corsConfigurations:
-              '[/**]':
-                allowedOrigins: ["http://localhost:3000","https://propai.co.uk","https://www.propai.co.uk"]
-                allowedMethods: [GET,POST,PUT,PATCH,DELETE,OPTIONS]
-                allowedHeaders: "*"
-                allowCredentials: true
 resilience4j:
   circuitbreaker:
     instances:
@@ -75,6 +68,8 @@ management:
       probes:
         enabled: true
 propai:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://propai.co.uk,https://www.propai.co.uk}
   security:
     jwt:
       secret: ${JWT_SECRET:propai_jwt_secret_change_in_production}
