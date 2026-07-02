@@ -1,0 +1,106 @@
+{{- range $svc := .Values.springServices }}
+{{- if not (eq $svc.enabled false) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: {{ $svc.name }}
+spec:
+  replicas: {{ default 1 $svc.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $svc.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "{{ $svc.port }}"
+    spec:
+      containers:
+        - name: {{ $svc.name }}
+          image: "{{ $svc.image }}:{{ $.Values.global.imageTag }}"
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ $.Values.global.springProfile | quote }}
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ default $.Values.jvm.default $svc.jvm | quote }}
+            {{- if ne $svc.name "eureka-server" }}
+            - name: EUREKA_URL
+              value: "http://eureka-server:8761/eureka"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: propai-secrets
+                  key: redis-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: propai-secrets
+                  key: jwt-secret
+            {{- end }}
+            {{- if $svc.mongoDb }}
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: propai-secrets
+                  key: mongodb-uri-{{ $svc.name }}
+            {{- end }}
+            {{- if $svc.needsAi }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: propai-secrets
+                  key: anthropic-api-key
+            - name: PROPAI_AI_MODEL
+              value: {{ $.Values.global.aiModel | quote }}
+            {{- end }}
+            {{- with $svc.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ $svc.port }}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ $svc.port }}
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ $svc.port }}
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  selector:
+    app: {{ $svc.name }}
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+{{- end }}
+{{- end }}

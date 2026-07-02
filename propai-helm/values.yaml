@@ -1,0 +1,119 @@
+global:
+  namespace: propai
+  imagePullPolicy: IfNotPresent
+  imageTag: latest
+  springProfile: docker
+  aiModel: claude-sonnet-4-6
+
+secrets:
+  jwtSecret: "BorderlessMerchSuperSecretKey2024!"
+  anthropicApiKey: ""            # fill in when you have a key, then helm upgrade
+  mongoUsername: propai
+  mongoPassword: propai_secret
+
+jvm:
+  default: "-XX:MaxRAMPercentage=65.0 -XX:MaxDirectMemorySize=96m"
+
+mongodb:
+  enabled: true
+  image: mongo:7.0
+  storage: 2Gi
+  resources:
+    requests: { cpu: 250m, memory: 384Mi }
+    limits:   { cpu: 1000m, memory: 768Mi }
+
+redis:
+  enabled: true
+  image: redis:7.4-alpine
+  password: propai_redis
+  resources:
+    requests: { cpu: 100m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+kafka:
+  enabled: true
+  image: apache/kafka:4.0.0
+  clusterId: MkU3OEVBNTcwNTJENDM2Qk
+  storage: 5Gi
+  resources:
+    requests: { cpu: 500m, memory: 768Mi }
+    limits:   { cpu: 2000m, memory: 1280Mi }
+
+springServices:
+  - name: eureka-server
+    image: propai-final-eureka-server
+    port: 8761
+    jvm: "-XX:MaxRAMPercentage=65.0 -XX:MaxDirectMemorySize=64m"
+    resources:
+      requests: { cpu: 100m, memory: 448Mi }
+      limits:   { cpu: 500m, memory: 768Mi }
+
+  - name: api-gateway
+    image: propai-final-api-gateway
+    port: 8080
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: property-service
+    image: propai-final-property-service
+    port: 8081
+    mongoDb: propai_property_service
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: user-service
+    image: propai-final-user-service
+    port: 8082
+    mongoDb: propai_user_service
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: enquiry-service
+    image: propai-final-enquiry-service
+    port: 8084
+    enabled: false
+    mongoDb: propai_enquiry_service
+    resources:
+      requests: { cpu: 250m, memory: 448Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: ai-chat-service
+    image: propai-final-ai-chat-service
+    port: 8085
+    mongoDb: propai_ai_chat_service
+    needsAi: true
+    jvm: "-XX:MaxRAMPercentage=70.0 -XX:MaxDirectMemorySize=128m"
+    resources:
+      requests: { cpu: 250m, memory: 640Mi }
+      limits:   { cpu: 1000m, memory: 1Gi }
+
+  - name: analytics-service
+    image: propai-final-analytics-service
+    port: 8086
+    mongoDb: propai_analytics_service
+    enabled: false
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: notification-service
+    image: propai-final-notification-service
+    port: 8087
+    enabled: false
+    resources:
+      requests: { cpu: 200m, memory: 448Mi }
+      limits:   { cpu: 750m, memory: 640Mi }
+
+  - name: search-service
+    image: propai-final-search-service
+    port: 8083
+    enabled: false                # toggle: needs elasticsearch
+    extraEnv:
+      - name: ELASTICSEARCH_URL
+        value: "http://elasticsearch:9200"
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
