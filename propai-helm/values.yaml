@@ -117,3 +117,33 @@ springServices:
     resources:
       requests: { cpu: 250m, memory: 512Mi }
       limits:   { cpu: 1000m, memory: 768Mi }
+
+ingress:
+  enabled: false                # local dev uses port-forward; enabled in prod overlay
+  className: nginx
+  hosts:
+    web: www.propai.co.uk
+    api: api.propai.co.uk
+  tls:
+    enabled: false
+    secretName: propai-tls-secret
+    hosts:
+      - propai.co.uk
+      - www.propai.co.uk
+      - api.propai.co.uk
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "Upgrade";
+
+externalSecrets:
+  enabled: false
+  serviceAccountName: propai-external-secrets
+  irsaRoleArn: ""                # set in values-production.yaml
+  region: eu-west-2
+  ssmPrefix: /propai/prod
+  refreshInterval: 1h

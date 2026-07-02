@@ -1,0 +1,122 @@
+# Production overlay for EKS. Apply with:
+#   helm install propai ./propai-helm -f propai-helm/values.yaml -f propai-helm/values-production.yaml -n propai
+#
+# NOTE: Helm REPLACES lists, it does not merge them. springServices below is the
+# COMPLETE list (all fields), not a partial override — editing base values.yaml
+# means mirroring the change here too.
+
+global:
+  imagePullPolicy: IfNotPresent
+  imageTag: "2.0.0"
+
+ingress:
+  enabled: true
+  tls:
+    enabled: true
+
+kafka:
+  storage: 50Gi
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: 2000m, memory: 4Gi }
+
+mongodb:
+  storage: 50Gi
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: 2000m, memory: 2Gi }
+
+redis:
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+springServices:
+  - name: eureka-server
+    image: ghcr.io/snoopy2k14/propai-eureka-server
+    port: 8761
+    replicas: 2
+    jvm: "-XX:MaxRAMPercentage=65.0 -XX:MaxDirectMemorySize=64m"
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: api-gateway
+    image: ghcr.io/snoopy2k14/propai-api-gateway
+    port: 8080
+    replicas: 3
+    resources:
+      requests: { cpu: 500m, memory: 640Mi }
+      limits:   { cpu: 2000m, memory: 1Gi }
+
+  - name: property-service
+    image: ghcr.io/snoopy2k14/propai-property-service
+    port: 8081
+    replicas: 3
+    mongoDb: propai_property_service
+    resources:
+      requests: { cpu: 500m, memory: 640Mi }
+      limits:   { cpu: 2000m, memory: 1Gi }
+
+  - name: user-service
+    image: ghcr.io/snoopy2k14/propai-user-service
+    port: 8082
+    replicas: 2
+    mongoDb: propai_user_service
+    resources:
+      requests: { cpu: 500m, memory: 640Mi }
+      limits:   { cpu: 2000m, memory: 1Gi }
+
+  - name: enquiry-service
+    image: ghcr.io/snoopy2k14/propai-enquiry-service
+    port: 8084
+    replicas: 2
+    mongoDb: propai_enquiry_service
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: ai-chat-service
+    image: ghcr.io/snoopy2k14/propai-ai-chat-service
+    port: 8085
+    replicas: 2
+    mongoDb: propai_ai_chat_service
+    needsAi: true
+    jvm: "-XX:MaxRAMPercentage=70.0 -XX:MaxDirectMemorySize=128m"
+    resources:
+      requests: { cpu: 500m, memory: 768Mi }
+      limits:   { cpu: 2000m, memory: 1280Mi }
+
+  - name: analytics-service
+    image: ghcr.io/snoopy2k14/propai-analytics-service
+    port: 8086
+    replicas: 2
+    mongoDb: propai_analytics_service
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: 1000m, memory: 768Mi }
+
+  - name: notification-service
+    image: ghcr.io/snoopy2k14/propai-notification-service
+    port: 8087
+    replicas: 2
+    resources:
+      requests: { cpu: 200m, memory: 448Mi }
+      limits:   { cpu: 750m, memory: 640Mi }
+
+  - name: search-service
+    image: ghcr.io/snoopy2k14/propai-search-service
+    port: 8083
+    replicas: 2
+    extraEnv:
+      - name: ELASTICSEARCH_URL
+        value: "http://elasticsearch:9200"
+    resources:
+      requests: { cpu: 500m, memory: 640Mi }
+      limits:   { cpu: 2000m, memory: 1Gi }
+
+externalSecrets:
+    enabled: true
+    irsaRoleArn: "arn:aws:iam::ACCOUNT_ID:role/propai-external-secrets"   # replace ACCOUNT_ID
+    region: eu-west-2
+    ssmPrefix: /propai/prod
