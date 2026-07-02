@@ -2,18 +2,23 @@ server:
   port: 8085
 
 spring:
+  main:
+    web-application-type: reactive
   application:
     name: ai-chat-service
   threads:
     virtual:
       enabled: true
+
+  mongodb:
+    uri: ${MONGODB_URI:mongodb://propai:propai_secret@localhost:27017/propai_ai_chat_service?authSource=admin}
+
   data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://propai:propai_secret@localhost:27017/propai_ai_chat_service?authSource=admin}
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:propai_redis}
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:

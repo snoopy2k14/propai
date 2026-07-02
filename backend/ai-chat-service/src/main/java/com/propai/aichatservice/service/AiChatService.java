@@ -56,6 +56,36 @@ public class AiChatService {
         String clean = handover ? reply.replace("HANDOVER_TO_AGENT","").trim() : reply;
         s.addMessage("assistant", clean);
         repo.save(s).subscribe();
+
+        // Send Kafka events on a separate thread pool, not the Reactor I/O thread.
+        // This prevents KafkaTemplate's lazy ProducerConfig static initializer from
+        // running on a Netty I/O thread where classloader context differs, causing
+        // ExceptionInInitializerError for DefaultJwtRetriever (missing from
+        // kafka-clients 4.2.1) to propagate up through the reactive chain and
+        // kill the response entirely.
+        Mono.fromRunnable(() -> {
+            try {
+                if (handover) {
+                    var ev = Map.of("eventType","CHAT_HANDOVER_REQUESTED","sessionId",s.getId(),
+                            "userId",userId!=null?userId:"anonymous","timestamp",Instant.now().toString());
+                    kafka.send("chat.handover", s.getId(), ev);
+                    ws.convertAndSend("/topic/agent-queue", ev);
+                }
+                kafka.send("analytics.events", s.getId(), Map.of("eventType","CHAT_MESSAGE",
+                        "sessionId",s.getId(),"handover",handover,"timestamp",Instant.now().toString()));
+            } catch (Exception e) {
+                log.warn("Failed to send Kafka event for session {}: {}", s.getId(), e.getMessage());
+            }
+        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()).subscribe();
+
+        return Map.of("message",clean,"sessionId",s.getId(),"handoverTriggered",handover,"timestamp",Instant.now());
+    }
+
+/*    private Map<String,Object> processReply(ChatSession s, String reply, String userId) {
+        boolean handover = reply.startsWith("HANDOVER_TO_AGENT");
+        String clean = handover ? reply.replace("HANDOVER_TO_AGENT","").trim() : reply;
+        s.addMessage("assistant", clean);
+        repo.save(s).subscribe();
         if (handover) {
             var ev = Map.of("eventType","CHAT_HANDOVER_REQUESTED","sessionId",s.getId(),
                 "userId",userId!=null?userId:"anonymous","timestamp",Instant.now().toString());
@@ -65,5 +95,5 @@ public class AiChatService {
         kafka.send("analytics.events", s.getId(), Map.of("eventType","CHAT_MESSAGE",
             "sessionId",s.getId(),"handover",handover,"timestamp",Instant.now().toString()));
         return Map.of("message",clean,"sessionId",s.getId(),"handoverTriggered",handover,"timestamp",Instant.now());
-    }
+    }*/
 }
