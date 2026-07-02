@@ -4,6 +4,7 @@
 x-service-defaults: &defaults
   restart: unless-stopped
   networks: [propai-net]
+  mem_limit: 768m
 
 x-backend-env: &backend-env
   SPRING_PROFILES_ACTIVE: docker
@@ -15,6 +16,7 @@ x-backend-env: &backend-env
   JWT_SECRET: ${JWT_SECRET:-propai_jwt_secret_change_me}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   PROPAI_AI_MODEL: ${PROPAI_AI_MODEL:-claude-sonnet-4-6}
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=65.0 -XX:MaxDirectMemorySize=96m"
 
 services:
 
@@ -25,6 +27,7 @@ services:
     image: mongo:7.0
     container_name: propai-mongodb
     ports: ["27017:27017"]
+    mem_limit: 768m
     environment:
       MONGO_INITDB_ROOT_USERNAME: propai
       MONGO_INITDB_ROOT_PASSWORD: propai_secret
@@ -53,6 +56,7 @@ services:
     <<: *defaults
     image: apache/kafka:4.0.0
     container_name: propai-kafka
+    mem_limit: 1280m
     ports:
       - "9092:9092"
       - "9093:9093"
@@ -73,17 +77,19 @@ services:
       KAFKA_NUM_PARTITIONS: 6
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx768m"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: [ "CMD-SHELL", "sleep 1 && echo ok" ]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
       interval: 10s
-      timeout: 5s
-      start_period: 60s
+      timeout: 10s
+      start_period: 45s
       retries: 5
 
   kafka-ui:
     <<: *defaults
+    profiles: ["observability"]
     image: provectuslabs/kafka-ui:latest
     container_name: propai-kafka-ui
     depends_on: [kafka]
@@ -95,8 +101,10 @@ services:
 
   elasticsearch:
     <<: *defaults
+    profiles: ["search"]
     image: elasticsearch:9.1.0
     container_name: propai-elasticsearch
+    mem_limit: 1536m
     ports: ["9200:9200"]
     environment:
       discovery.type: single-node
@@ -104,7 +112,7 @@ services:
       xpack.security.enabled: "false"
     volumes: [es_data:/usr/share/elasticsearch/data]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -q '\"status\"'"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9200/_cluster/health | grep -q '\"status\"'"]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -118,14 +126,16 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-eureka
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8761/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8761/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8761:8761"]
+    mem_limit: 640m
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=65.0 -XX:MaxDirectMemorySize=64m"
 
   # ── Backend Microservices — Spring Boot 4.1.0 / JDK 25 ─────────────────────
   api-gateway:
@@ -136,6 +146,7 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-api-gateway
     ports: ["8080:8080"]
+    mem_limit: 768m
     environment:
       <<: *backend-env
     depends_on:
@@ -150,12 +161,13 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-property-service
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8081/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8081/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8081:8081"]
+    mem_limit: 768m
     environment:
       <<: *backend-env
       MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_property_service?authSource=admin
@@ -172,12 +184,13 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-user-service
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8082/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8082/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8082:8082"]
+    mem_limit: 768m
     environment:
       <<: *backend-env
       MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_user_service?authSource=admin
@@ -187,18 +200,20 @@ services:
 
   search-service:
     <<: *defaults
+    profiles: ["search"]
     build:
       context: ./backend/search-service
       dockerfile: Dockerfile
       args: { JAVA_VERSION: "25" }
     container_name: propai-search-service
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8083/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8083/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8083:8083"]
+    mem_limit: 768m
     environment:
       <<: *backend-env
       ELASTICSEARCH_URL: http://elasticsearch:9200
@@ -214,12 +229,13 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-enquiry-service
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8084/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8084/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8084:8084"]
+    mem_limit: 768m
     environment:
       <<: *backend-env
       MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_enquiry_service?authSource=admin
@@ -235,15 +251,17 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-ai-chat
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8085/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8085/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8085:8085"]
+    mem_limit: 1g
     environment:
       <<: *backend-env
       MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_ai_chat_service?authSource=admin
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:MaxDirectMemorySize=128m"
     depends_on:
       mongodb: { condition: service_healthy }
       kafka:   { condition: service_healthy }
@@ -256,12 +274,13 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-analytics
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8086/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8086/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8086:8086"]
+    mem_limit: 768m
     environment:
       <<: *backend-env
       MONGODB_URI: mongodb://propai:propai_secret@mongodb:27017/propai_analytics_service?authSource=admin
@@ -277,12 +296,13 @@ services:
       args: { JAVA_VERSION: "25" }
     container_name: propai-notifications
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8087/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8087/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s
       retries: 3
     ports: ["8087:8087"]
+    mem_limit: 640m
     environment:
       <<: *backend-env
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
@@ -305,6 +325,7 @@ services:
   # ── Observability ─────────────────────────────────────────────────────────────
   prometheus:
     <<: *defaults
+    profiles: ["observability"]
     image: prom/prometheus:v2.55.0
     container_name: propai-prometheus
     ports: ["9090:9090"]
@@ -315,6 +336,7 @@ services:
 
   grafana:
     <<: *defaults
+    profiles: ["observability"]
     image: grafana/grafana:11.3.0
     container_name: propai-grafana
     ports: ["3001:3000"]
@@ -325,6 +347,7 @@ services:
 
   jaeger:
     <<: *defaults
+    profiles: ["observability"]
     image: jaegertracing/all-in-one:1.76.0
     container_name: propai-jaeger
     ports:
